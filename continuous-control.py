@@ -1,6 +1,8 @@
 import random
 import numpy as np
 from typing import Tuple
+
+from agents import ActorCritic
 from config import settings
 from unityagents import UnityEnvironment, BrainParameters, BrainInfo
 
@@ -48,8 +50,25 @@ def random_cc() -> None:
     print("Score: {}".format(score))
 
 
+def train() -> None:
+    # Init environment.
+    env, brain_name, state_size, action_size, state = init_env(settings.env_file, train_mode=True)
+
+    agent = ActorCritic(state_size, action_size, 24)
+
+    print("Actor model")
+    print("============================================================")
+    print(agent.actor)
+
+    print("Critic model")
+    print("============================================================")
+    print(agent.critic)
+
+    env.close()
+
+
 def main():
-    random_cc()
+    train()
 
 
 if __name__ == "__main__":
