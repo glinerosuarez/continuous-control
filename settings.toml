@@ -1,4 +1,7 @@
 env_file = "environment/Reacher.app"
+seed = 24
+cores = 6
+out_dir = "output"
 
 [ActorCritic]
 layers = 3

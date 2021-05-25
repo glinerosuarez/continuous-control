@@ -1,7 +1,11 @@
 import random
-import numpy as np
-from typing import Tuple
 
+from argparse import ArgumentParser, Namespace
+import numpy as np
+from typing import Tuple, Sequence, Dict
+
+import mpi_tools
+import utils
 from agents import ActorCritic
 from config import settings
 from unityagents import UnityEnvironment, BrainParameters, BrainInfo
@@ -72,4 +76,16 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+
+    # Get arguments
+    parser: ArgumentParser = ArgumentParser()
+    parser.add_argument("--exp_name", type=str, default="reach-ppo")
+    args: Namespace = parser.parse_args()
+
+    # Run parallel code with MPI
+    print(f"{mpi_tools.num_procs()} MPI processes and {mpi_tools.proc_id()} rank before calling MPI fork")
+    mpi_tools.mpi_fork(settings.cores)
+    print(f"{mpi_tools.num_procs()} MPI processes and {mpi_tools.proc_id()} rank after calling MPI fork")
+
+    # Get logging kwargs
+    logger_kwargs: Dict[str, str] = utils.setup_logger_kwargs(args.exp_name, settings.seed, settings.out_dir, True)

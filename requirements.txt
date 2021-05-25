@@ -2,3 +2,4 @@ numpy==1.19.5
 unityagents==0.4.0
 dynaconf==3.1.4
 torch==1.8.1
+mpi4py==3.0.3
