@@ -1,14 +1,13 @@
 import random
-
-from argparse import ArgumentParser, Namespace
 import numpy as np
-from typing import Tuple, Sequence, Dict
-
-import mpi_tools
-import utils
-from agents import ActorCritic
+from tools import mpi
+from tools import log
 from config import settings
+from typing import Tuple, Dict
+from argparse import ArgumentParser, Namespace
 from unityagents import UnityEnvironment, BrainParameters, BrainInfo
+
+from ppo import PPO
 
 
 def init_env(
@@ -55,7 +54,7 @@ def random_cc() -> None:
 
 
 def train() -> None:
-    # Init environment.
+    """# Init environment.
     env, brain_name, state_size, action_size, state = init_env(settings.env_file, train_mode=True)
 
     agent = ActorCritic(state_size, action_size, 24)
@@ -68,24 +67,24 @@ def train() -> None:
     print("============================================================")
     print(agent.critic)
 
-    env.close()
+    env.close()"""
+
 
 
 def main():
-    train()
-
-
-if __name__ == "__main__":
-
     # Get arguments
     parser: ArgumentParser = ArgumentParser()
     parser.add_argument("--exp_name", type=str, default="reach-ppo")
     args: Namespace = parser.parse_args()
 
     # Run parallel code with MPI
-    print(f"{mpi_tools.num_procs()} MPI processes and {mpi_tools.proc_id()} rank before calling MPI fork")
-    mpi_tools.mpi_fork(settings.cores)
-    print(f"{mpi_tools.num_procs()} MPI processes and {mpi_tools.proc_id()} rank after calling MPI fork")
+    mpi.mpi_fork(settings.cores)
 
     # Get logging kwargs
-    logger_kwargs: Dict[str, str] = utils.setup_logger_kwargs(args.exp_name, settings.seed, settings.out_dir, True)
+    logger_kwargs: Dict[str, str] = log.setup_logger_kwargs(args.exp_name, settings.seed, settings.out_dir, True)
+
+    ppo: PPO = PPO(logger_kwargs=logger_kwargs)
+
+
+if __name__ == "__main__":
+    main()
