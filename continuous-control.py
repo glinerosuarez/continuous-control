@@ -1,40 +1,17 @@
-import random
 import numpy as np
+from ppo import PPO
 from tools import mpi
 from tools import log
 from config import settings
+from tools.env import init_reacher_env
 from typing import Tuple, Dict
 from argparse import ArgumentParser, Namespace
 from unityagents import UnityEnvironment, BrainParameters, BrainInfo
 
-from ppo import PPO
-
-
-def init_env(
-        env_file: str,
-        train_mode: bool = True,
-        seed: int = random.randint(0, 100)
-) -> Tuple[UnityEnvironment, str, int, int, Tuple[float]]:
-    """initialize Banana UnityEnvironment"""
-
-    env: UnityEnvironment = UnityEnvironment(file_name=env_file, worker_id=1, seed=seed)
-
-    # Environments contain brains which are responsible for deciding the actions of their associated agents.
-    # Here we check for the first brain available, and set it as the default brain we will be controlling from Python.
-    brain_name: str = env.brain_names[0]
-    brain: BrainParameters = env.brains[brain_name]
-
-    # Accumulate experience and train the agent.
-    action_size: int = brain.vector_action_space_size                                       # number of actions
-    state: Tuple[float] = env.reset(train_mode)[brain_name].vector_observations[0]          # initial state
-    state_size: int = len(state)                                                            # get the current stat
-
-    return env, brain_name, state_size, action_size, state
-
 
 def random_cc() -> None:
     # Init environment.
-    env, brain_name, state_size, action_size, state = init_env(settings.env_file, train_mode=False)
+    env, brain_name, state_size, action_size, state = init_reacher_env()
 
     # Take random actions in the environment.
     score: float = 0                                            # initialize the score
@@ -70,7 +47,6 @@ def train() -> None:
     env.close()"""
 
 
-
 def main():
     # Get arguments
     parser: ArgumentParser = ArgumentParser()
@@ -83,7 +59,7 @@ def main():
     # Get logging kwargs
     logger_kwargs: Dict[str, str] = log.setup_logger_kwargs(args.exp_name, settings.seed, settings.out_dir, True)
 
-    ppo: PPO = PPO(logger_kwargs=logger_kwargs)
+    ppo: PPO = PPO(env_fn=init_reacher_env, seed=settings.seed, logger_kwargs=logger_kwargs)
 
 
 if __name__ == "__main__":

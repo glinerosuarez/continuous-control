@@ -1,12 +1,21 @@
-from typing import Dict
+import torch
+import numpy as np
+from unityagents import UnityEnvironment
 
-from config import settings
 from tools import mpi
+from config import settings
+from agents import ActorCritic
 from tools.log import EpochLogger
+from typing import Dict, Callable, Tuple
 
 
 class PPO:
-    def __init__(self, logger_kwargs: Dict[str, str]):
+    def __init__(
+            self,
+            env_fn: Callable[[], Tuple[UnityEnvironment, str, int, int, Tuple[float]]],
+            seed: int,
+            logger_kwargs: Dict[str, str]
+    ):
         """
         Proximal Policy Optimization (by clipping),
         with early stopping based on approximate KL
@@ -54,7 +63,7 @@ class PPO:
                 ===========  ================  ======================================
             ac_kwargs (dict): Any kwargs appropriate for the ActorCritic object
                 you provided to PPO.
-            seed (int): Seed for random number generators.
+            seed: Seed for random number generators.
             steps_per_epoch (int): Number of steps of interaction (state-action pairs)
                 for the agent and the environment in each epoch.
             epochs (int): Number of epochs of interaction (equivalent to
@@ -79,7 +88,7 @@ class PPO:
             target_kl (float): Roughly what KL divergence we think is appropriate
                 between new and old policies after an update. This will get used
                 for early stopping. (Usually small, 0.01 or 0.05.)
-            logger_kwargs (dict): Keyword args for EpochLogger.
+            logger_kwargs: Keyword args for EpochLogger.
             save_freq (int): How often (in terms of gap between epochs) to save
                 the current policy and value function.
         """
@@ -90,3 +99,24 @@ class PPO:
         # Set up logger and save configuration
         logger = EpochLogger(**logger_kwargs)
         logger.save_config(settings.as_dict())
+
+        # Random seed
+        seed += 10000 * mpi.proc_id()
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+
+        # Instantiate environment
+        env, brain_name, state_size, action_size, state = env_fn()
+
+        # Create actor-critic module
+        ac = ActorCritic(state_size=state_size, action_size=action_size, seed=seed)
+
+        print("Actor model")
+        print("============================================================")
+        print(ac.pi)
+        print("Critic model")
+        print("============================================================")
+        print(ac.v)
+
+        env.close()
+

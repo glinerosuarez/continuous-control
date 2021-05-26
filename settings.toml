@@ -1,4 +1,5 @@
 env_file = "environment/Reacher.app"
+train_mode = true
 seed = 24
 cores = 6
 out_dir = "output"

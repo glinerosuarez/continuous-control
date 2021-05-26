@@ -1,8 +1,61 @@
 import torch
-from utils import Activation
+from torch import Tensor
 from config import settings
-from collections import OrderedDict
-from torch.nn import Sequential, Linear, Module, Tanh, ReLU
+from torch.distributions.normal import Normal
+from tools.nets import Activation, build_model
+from torch.nn import Parameter, Sequential, Linear, Module, Tanh, ReLU
+
+
+class Actor(Module):
+    def __init__(self, state_size: int, action_size: int, seed: int) -> None:
+        super(Actor, self).__init__()
+
+        self.seed: int = seed
+        torch.manual_seed(seed)
+
+        self.log_std: Parameter = Parameter(-0.5 * torch.ones(action_size, dtype=torch.float32))
+        self.mu_net: Sequential = build_model(
+            state_size=state_size,
+            n_layers=settings.ActorCritic.layers,
+            hidden_nodes=settings.ActorCritic.hidden_nodes,
+            activation=Activation.TANH if settings.ActorCritic.activation == Activation.TANH.value else Activation.RELU,
+            o_dim=action_size
+        )
+
+    def distribution(self, obs) -> Normal:
+        mu: Tensor = self.mu_net(obs)
+        std: Tensor = torch.exp(self.log_std)
+        return Normal(mu, std)
+
+    def log_prob_from_dist(self, pi, act):
+        # TODO: why sum is required here?
+        return pi.log_prob(act).sum(axis=-1)
+
+    def forward(self, obs, act=None):
+        # Produce action distributions for given observations, and
+        # optionally compute the log likelihood of given actions under
+        # those distributions.
+        pi = self.distribution(obs)
+        logp_a = None
+        if act is not None:
+            logp_a = self.log_prob_from_dist(pi, act)
+        return pi, logp_a
+
+
+class Critic(Module):
+    def __init__(self, state_size: int, action_size: int, seed: int):
+        super(Critic, self).__init__()
+
+        self.v_net: Sequential = build_model(
+            state_size=state_size,
+            n_layers=settings.ActorCritic.layers,
+            hidden_nodes=settings.ActorCritic.hidden_nodes,
+            activation=Activation.TANH if settings.ActorCritic.activation == Activation.TANH.value else Activation.RELU,
+            o_dim=1
+        )
+
+    def forward(self, obs: Tensor) -> Tensor:
+        return torch.squeeze(self.v_net(obs), -1)
 
 
 class ActorCritic(Module):
@@ -16,48 +69,24 @@ class ActorCritic(Module):
             seed (int): Random seed
         """
 
-        def build_model(n_layers: int, hidden_nodes: int, activation: Activation, o_dim: int) -> Sequential:
-            """Build a MLP.
-            Params
-            ======
-                n_layers: Number of hidden layers
-                hidden_nodes: Number of nodes per hidden layer
-                activation: Type of activations
-                o_dim: output dimension
-            """
-            layers: OrderedDict[str, Module] = OrderedDict()
-
-            for i in range(n_layers):
-                if i == 0:
-                    layers["Linear1"] = Linear(state_size, hidden_nodes)
-                    layers["Activation1"] = Tanh() if activation == Activation.TANH else ReLU()
-                elif i == (n_layers - 1):
-                    layers[f"Linear{n_layers}"] = Linear(hidden_nodes, o_dim)
-                    layers[f"Activation{n_layers}"] = Tanh() if activation == Activation.TANH else ReLU()
-                else:
-                    layers[f"Linear{i + 1}"] = Linear(hidden_nodes, settings.ActorCritic.hidden_nodes)
-                    layers[f"Activation{i + 1}"] = Tanh() if activation == Activation.TANH else ReLU()
-
-            return Sequential(layers)
-
         super(ActorCritic, self).__init__()
 
         self.seed: int = seed
         torch.manual_seed(seed)
 
-        self.actor = build_model(
-            n_layers=settings.ActorCritic.layers,
-            hidden_nodes=settings.ActorCritic.hidden_nodes,
-            activation=Activation.TANH if settings.ActorCritic.activation == Activation.TANH.value else Activation.RELU,
-            o_dim=action_size
-        )
+        self.pi = Actor(state_size, action_size, seed)
+        self.v = Critic(state_size, action_size, seed)
 
-        self.critic = build_model(
-            n_layers=settings.ActorCritic.layers,
-            hidden_nodes=settings.ActorCritic.hidden_nodes,
-            activation=Activation.TANH if settings.ActorCritic.activation == Activation.TANH.value else Activation.RELU,
-            o_dim=1
-        )
+    def step(self, obs: Tensor):
+        with torch.no_grad():
+            pi = self.pi.distribution(obs)
+            a = pi.sample()
+            logp_a = self.pi.log_prob_from_dist(pi, a)
+            v = self.v(obs)
+        return a.numpy(), v.numpy(), logp_a.numpy()
 
-    def forward(self, x):
-        raise NotImplementedError
+    def act(self, obs):
+        return self.step(obs)[0]
+
+
+
