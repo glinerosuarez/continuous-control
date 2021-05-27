@@ -2,7 +2,8 @@ import torch
 import numpy as np
 from unityagents import UnityEnvironment
 
-from tools import mpi
+from buffer import PPOBuffer
+from tools import mpi, nets
 from config import settings
 from agents import ActorCritic
 from tools.log import EpochLogger
@@ -12,8 +13,11 @@ from typing import Dict, Callable, Tuple
 class PPO:
     def __init__(
             self,
-            env_fn: Callable[[], Tuple[UnityEnvironment, str, int, int, Tuple[float]]],
+            env_fn: Callable[[int], Tuple[UnityEnvironment, str, int, int, Tuple[float]]],
             seed: int,
+            steps_per_epoch: int,
+            gamma: float,
+            lam: float,
             logger_kwargs: Dict[str, str]
     ):
         """
@@ -22,53 +26,14 @@ class PPO:
         Args:
             env_fn : A function which creates a copy of the environment.
                 The environment must satisfy the OpenAI Gym API.
-            actor_critic: The constructor method for a PyTorch Module with a
-                ``step`` method, an ``act`` method, a ``pi`` module, and a ``v``
-                module. The ``step`` method should accept a batch of observations
-                and return:
-                ===========  ================  ======================================
-                Symbol       Shape             Description
-                ===========  ================  ======================================
-                ``a``        (batch, act_dim)  | Numpy array of actions for each
-                                               | observation.
-                ``v``        (batch,)          | Numpy array of value estimates
-                                               | for the provided observations.
-                ``logp_a``   (batch,)          | Numpy array of log probs for the
-                                               | actions in ``a``.
-                ===========  ================  ======================================
-                The ``act`` method behaves the same as ``step`` but only returns ``a``.
-                The ``pi`` module's forward call should accept a batch of
-                observations and optionally a batch of actions, and return:
-                ===========  ================  ======================================
-                Symbol       Shape             Description
-                ===========  ================  ======================================
-                ``pi``       N/A               | Torch Distribution object, containing
-                                               | a batch of distributions describing
-                                               | the policy for the provided observations.
-                ``logp_a``   (batch,)          | Optional (only returned if batch of
-                                               | actions is given). Tensor containing
-                                               | the log probability, according to
-                                               | the policy, of the provided actions.
-                                               | If actions not given, will contain
-                                               | ``None``.
-                ===========  ================  ======================================
-                The ``v`` module's forward call should accept a batch of observations
-                and return:
-                ===========  ================  ======================================
-                Symbol       Shape             Description
-                ===========  ================  ======================================
-                ``v``        (batch,)          | Tensor containing the value estimates
-                                               | for the provided observations. (Critical:
-                                               | make sure to flatten this!)
-                ===========  ================  ======================================
             ac_kwargs (dict): Any kwargs appropriate for the ActorCritic object
                 you provided to PPO.
             seed: Seed for random number generators.
-            steps_per_epoch (int): Number of steps of interaction (state-action pairs)
+            steps_per_epoch: Number of steps of interaction (state-action pairs)
                 for the agent and the environment in each epoch.
             epochs (int): Number of epochs of interaction (equivalent to
                 number of policy updates) to perform.
-            gamma (float): Discount factor. (Always between 0 and 1.)
+            gamma: Discount factor. (Always between 0 and 1.)
             clip_ratio (float): Hyperparameter for clipping in the policy objective.
                 Roughly: how far can the new policy go from the old policy while
                 still profiting (improving the objective function)? The new policy
@@ -82,7 +47,7 @@ class PPO:
                 to take fewer than this.)
             train_v_iters (int): Number of gradient descent steps to take on
                 value function per epoch.
-            lam (float): Lambda for GAE-Lambda. (Always between 0 and 1,
+            lam: Lambda for GAE-Lambda. (Always between 0 and 1,
                 close to 1.)
             max_ep_len (int): Maximum length of trajectory / episode / rollout.
             target_kl (float): Roughly what KL divergence we think is appropriate
@@ -106,17 +71,31 @@ class PPO:
         np.random.seed(seed)
 
         # Instantiate environment
-        env, brain_name, state_size, action_size, state = env_fn()
+        env, brain_name, state_size, action_size, state = env_fn(seed)
 
         # Create actor-critic module
         ac = ActorCritic(state_size=state_size, action_size=action_size, seed=seed)
 
-        print("Actor model")
-        print("============================================================")
-        print(ac.pi)
-        print("Critic model")
-        print("============================================================")
-        print(ac.v)
+        # Sync params across processes
+        mpi.sync_params(ac)
+
+        # Count variables
+        var_counts = tuple(nets.count_vars(module) for module in [ac.pi, ac.v])
+        logger.log('\nNumber of parameters: \t pi: %d, \t v: %d\n' % var_counts)
+
+        # Set up experience buffer
+        local_steps_per_epoch = int(steps_per_epoch / mpi.num_procs())
+        buf = PPOBuffer(state_size, action_size, local_steps_per_epoch, gamma, lam)
+
+        print(f"buffer {mpi.proc_id()}")
+        print(buf)
+
+        """if mpi.proc_id() in (1, 2):
+            for p in ac.parameters():
+                print(f"ActorCritic params proc {mpi.proc_id()}")
+                print("============================================================")
+                print(p.data.shape)
+                print(p.data)"""
 
         env.close()
 

@@ -4,8 +4,8 @@ from config import settings
 from unityagents import UnityEnvironment, BrainParameters
 
 
-def init_reacher_env() -> Tuple[UnityEnvironment, str, int, int, Tuple[float]]:
-    return init_env(settings.env_file, train_mode=settings.train_mode, seed=settings.seed)
+def init_reacher_env(seed: int) -> Tuple[UnityEnvironment, str, int, int, Tuple[float]]:
+    return init_env(settings.env_file, train_mode=settings.train_mode, seed=seed)
 
 
 def init_env(

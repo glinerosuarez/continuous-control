@@ -90,3 +90,16 @@ def mpi_statistics_scalar(x: Sequence[float], with_min_and_max: bool = False):
         global_max = mpi_op(np.max(x) if len(x) > 0 else -np.inf, op=MPI.MAX)
         return mean, std, global_min, global_max
     return mean, std
+
+
+def broadcast(x, root=0):
+    MPI.COMM_WORLD.Bcast(x, root=root)
+
+
+def sync_params(module):
+    """ Sync all parameters of module across all MPI processes. """
+    if num_procs() == 1:
+        return
+    for p in module.parameters():
+        p_numpy = p.data.numpy()
+        broadcast(p_numpy)

@@ -59,7 +59,14 @@ def main():
     # Get logging kwargs
     logger_kwargs: Dict[str, str] = log.setup_logger_kwargs(args.exp_name, settings.seed, settings.out_dir, True)
 
-    ppo: PPO = PPO(env_fn=init_reacher_env, seed=settings.seed, logger_kwargs=logger_kwargs)
+    ppo: PPO = PPO(
+        env_fn=init_reacher_env,
+        seed=settings.seed,
+        steps_per_epoch=settings.PPO.steps_per_epoch,
+        gamma=settings.PPO.gamma,
+        lam=settings.PPO.lam,
+        logger_kwargs=logger_kwargs
+    )
 
 
 if __name__ == "__main__":

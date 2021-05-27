@@ -4,6 +4,11 @@ seed = 24
 cores = 6
 out_dir = "output"
 
+[PPO]
+gamma = 0.99
+lam = 0.97
+steps_per_epoch = 4000
+
 [ActorCritic]
 layers = 3
 activation = "tanh"

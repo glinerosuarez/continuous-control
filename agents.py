@@ -1,5 +1,8 @@
+import numpy as np
 import torch
 from torch import Tensor
+from typing import Tuple, Optional
+
 from config import settings
 from torch.distributions.normal import Normal
 from tools.nets import Activation, build_model
@@ -7,11 +10,8 @@ from torch.nn import Parameter, Sequential, Linear, Module, Tanh, ReLU
 
 
 class Actor(Module):
-    def __init__(self, state_size: int, action_size: int, seed: int) -> None:
+    def __init__(self, state_size: int, action_size: int) -> None:
         super(Actor, self).__init__()
-
-        self.seed: int = seed
-        torch.manual_seed(seed)
 
         self.log_std: Parameter = Parameter(-0.5 * torch.ones(action_size, dtype=torch.float32))
         self.mu_net: Sequential = build_model(
@@ -31,10 +31,22 @@ class Actor(Module):
         # TODO: why sum is required here?
         return pi.log_prob(act).sum(axis=-1)
 
-    def forward(self, obs, act=None):
-        # Produce action distributions for given observations, and
-        # optionally compute the log likelihood of given actions under
-        # those distributions.
+    def forward(self, obs: Tensor, act=None) -> Tuple[Normal, Optional[Tensor]]:
+        """
+        Accept a batch of observations and optionally a batch of actions. Produce action distributions for given
+        observations, and optionally compute the log likelihood of given actions under and those distributions.
+        return:
+        ===========  ================  ===========================================================================
+        Symbol       Shape             Description
+        ===========  ================  ===========================================================================
+        ``pi``       N/A               | Torch Distribution object, containing a batch of distributions describing
+                                       | the policy for the provided observations.
+        ``logp_a``   (batch,)          | Optional (only returned if batch of actions is given). Tensor containing
+                                       | the log probability, according to the policy, of the provided actions.
+                                       | If actions not given, will contain ``None``.
+        ===========  ================  ===========================================================================
+        """
+
         pi = self.distribution(obs)
         logp_a = None
         if act is not None:
@@ -43,7 +55,7 @@ class Actor(Module):
 
 
 class Critic(Module):
-    def __init__(self, state_size: int, action_size: int, seed: int):
+    def __init__(self, state_size: int):
         super(Critic, self).__init__()
 
         self.v_net: Sequential = build_model(
@@ -55,29 +67,50 @@ class Critic(Module):
         )
 
     def forward(self, obs: Tensor) -> Tensor:
+        """
+        Accepts a batch of observations and return:
+        ===========  ================  ======================================
+        Symbol       Shape             Description
+        ===========  ================  ======================================
+        ``v``        (batch,)          | Tensor containing the value estimates for the provided observations.
+                                       | (Critical: make sure to flatten this!)
+        ===========  ================  ======================================
+        """
         return torch.squeeze(self.v_net(obs), -1)
 
 
 class ActorCritic(Module):
+    """ A PyTorch Module with a ``step`` method, an ``act`` method, a ``pi`` module, and a ``v`` module. """
 
-    def __init__(self, state_size: int, action_size: int, seed: int) -> None:
+    def __init__(self, state_size: int, action_size: int, seed: int):
         """Initialize parameters and build model.
         Params
         ======
-            state_size (int): Dimension of each state
-            action_size (int): Dimension of each action
-            seed (int): Random seed
+            state_size: Dimension of each state
+            action_size: Dimension of each action
+            seed: Random seed
         """
 
         super(ActorCritic, self).__init__()
 
-        self.seed: int = seed
         torch.manual_seed(seed)
+        np.random.seed(seed)
 
-        self.pi = Actor(state_size, action_size, seed)
-        self.v = Critic(state_size, action_size, seed)
+        self.pi = Actor(state_size, action_size)
+        self.v = Critic(state_size)
 
-    def step(self, obs: Tensor):
+    def step(self, obs: Tensor) -> Tuple[np.array, np.array, np.array]:
+        """
+        The ``step`` method accepts a batch of observations and return:
+        ===========  ====================      ===================================
+        Symbol       Shape                     Description
+        ===========  ====================      ===================================
+        ``a``        (batch, action_size)      | Numpy array of actions for each observation.
+        ``v``        (batch,)                  | Numpy array of value estimates for the provided observations.
+        ``logp_a``   (batch,)                  | Numpy array of log probs for the actions in ``a``.
+        ===========  ====================      ===================================
+        """
+
         with torch.no_grad():
             pi = self.pi.distribution(obs)
             a = pi.sample()
@@ -86,6 +119,7 @@ class ActorCritic(Module):
         return a.numpy(), v.numpy(), logp_a.numpy()
 
     def act(self, obs):
+        """ Behaves the same as ``step`` but only returns ``a``. """
         return self.step(obs)[0]
 
 

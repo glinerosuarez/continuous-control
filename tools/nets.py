@@ -1,5 +1,7 @@
 from enum import Enum
 from collections import OrderedDict
+
+import numpy as np
 from torch.nn import Module, Sequential, Linear, Tanh, ReLU
 
 
@@ -37,3 +39,7 @@ def build_model(state_size: int, n_layers: int, hidden_nodes: int, activation: A
             layers[f"Activation{i + 1}"] = Tanh() if activation == Activation.TANH else ReLU()
 
     return Sequential(layers)
+
+
+def count_vars(module: Module) -> float:
+    return sum([np.prod(p.shape) for p in module.parameters()])
