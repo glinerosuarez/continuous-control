@@ -3,19 +3,22 @@ from typing import Tuple
 from config import settings
 from unityagents import UnityEnvironment, BrainParameters
 
+from tools import mpi
+
 
 def init_reacher_env(seed: int) -> Tuple[UnityEnvironment, str, int, int, Tuple[float]]:
-    return init_env(settings.env_file, train_mode=settings.train_mode, seed=seed)
+    return init_env(settings.env_file, train_mode=settings.train_mode, worker_id=mpi.proc_id(), seed=seed)
 
 
 def init_env(
         env_file: str,
         train_mode: bool,
+        worker_id: int,
         seed: int,
 ) -> Tuple[UnityEnvironment, str, int, int, Tuple[float]]:
     """initialize UnityEnvironment"""
 
-    env: UnityEnvironment = UnityEnvironment(file_name=env_file, worker_id=random.randint(1, 100), seed=seed)
+    env: UnityEnvironment = UnityEnvironment(file_name=env_file, worker_id=worker_id, seed=seed)
 
     # Environments contain brains which are responsible for deciding the actions of their associated agents.
     # Here we check for the first brain available, and set it as the default brain we will be controlling from Python.

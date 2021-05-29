@@ -66,7 +66,15 @@ def mpi_op(x, op):
 
 
 def mpi_sum(x):
+    """Sum a scalar or vector over MPI processes."""
+
     return mpi_op(x, MPI.SUM)
+
+
+def mpi_avg(x):
+    """Average a scalar or vector over MPI processes."""
+
+    return mpi_sum(x) / num_procs()
 
 
 def mpi_statistics_scalar(x: Sequence[float], with_min_and_max: bool = False):
@@ -98,8 +106,20 @@ def broadcast(x, root=0):
 
 def sync_params(module):
     """ Sync all parameters of module across all MPI processes. """
+
     if num_procs() == 1:
         return
     for p in module.parameters():
         p_numpy = p.data.numpy()
         broadcast(p_numpy)
+
+
+def mpi_avg_grads(module):
+    """ Average contents of gradient buffers across MPI processes. """
+
+    if num_procs() == 1:
+        return
+    for p in module.parameters():
+        p_grad_numpy = p.grad.numpy()   # numpy view of tensor data
+        avg_p_grad = mpi_avg(p.grad)
+        p_grad_numpy[:] = avg_p_grad[:]

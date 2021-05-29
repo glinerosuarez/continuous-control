@@ -10,7 +10,7 @@ from torch.nn import Parameter, Sequential, Linear, Module, Tanh, ReLU
 
 
 class Actor(Module):
-    def __init__(self, state_size: int, action_size: int) -> None:
+    def __init__(self, state_size: int, action_size: int):
         super(Actor, self).__init__()
 
         self.log_std: Parameter = Parameter(-0.5 * torch.ones(action_size, dtype=torch.float32))
@@ -22,16 +22,16 @@ class Actor(Module):
             o_dim=action_size
         )
 
-    def distribution(self, obs) -> Normal:
-        mu: Tensor = self.mu_net(obs)
+    def _distribution(self, states: Tensor) -> Normal:
+        mu: Tensor = self.mu_net(states)
         std: Tensor = torch.exp(self.log_std)
         return Normal(mu, std)
 
-    def log_prob_from_dist(self, pi, act):
+    def log_prob_from_dist(self, prob_dist: Normal, act):
         # TODO: why sum is required here?
-        return pi.log_prob(act).sum(axis=-1)
+        return prob_dist.log_prob(act).sum(axis=-1)
 
-    def forward(self, obs: Tensor, act=None) -> Tuple[Normal, Optional[Tensor]]:
+    def forward(self, states: Tensor, act: Optional[Tensor] = None) -> Tuple[Normal, Optional[Tensor]]:
         """
         Accept a batch of observations and optionally a batch of actions. Produce action distributions for given
         observations, and optionally compute the log likelihood of given actions under and those distributions.
@@ -47,11 +47,11 @@ class Actor(Module):
         ===========  ================  ===========================================================================
         """
 
-        pi = self.distribution(obs)
+        prob_dist = self._distribution(states)
         logp_a = None
         if act is not None:
-            logp_a = self.log_prob_from_dist(pi, act)
-        return pi, logp_a
+            logp_a = self.log_prob_from_dist(prob_dist, act)
+        return prob_dist, logp_a
 
 
 class Critic(Module):
@@ -112,7 +112,7 @@ class ActorCritic(Module):
         """
 
         with torch.no_grad():
-            pi = self.pi.distribution(obs)
+            pi = self.pi._distribution(obs)
             a = pi.sample()
             logp_a = self.pi.log_prob_from_dist(pi, a)
             v = self.v(obs)

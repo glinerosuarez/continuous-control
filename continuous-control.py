@@ -63,10 +63,21 @@ def main():
         env_fn=init_reacher_env,
         seed=settings.seed,
         steps_per_epoch=settings.PPO.steps_per_epoch,
+        epochs=settings.PPO.epochs,
         gamma=settings.PPO.gamma,
+        clip_ratio=settings.PPO.clip_ratio,
+        policy_lr=settings.ActorCritic.policy_lr,
+        value_lr=settings.ActorCritic.value_lr,
+        train_policy_iters=settings.ActorCritic.train_policy_iters,
+        train_value_iters=settings.ActorCritic.train_value_iters,
         lam=settings.PPO.lam,
-        logger_kwargs=logger_kwargs
+        max_ep_len=settings.PPO.max_ep_len,
+        target_kl=settings.PPO.target_kl,
+        logger_kwargs=logger_kwargs,
+        save_freq=settings.save_freq
     )
+
+    ppo.train()
 
 
 if __name__ == "__main__":

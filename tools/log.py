@@ -6,6 +6,8 @@ import joblib
 import atexit
 import warnings
 import numpy as np
+
+from agents import ActorCritic
 from tools import mpi
 import os.path as osp
 from tools import serialization
@@ -124,14 +126,15 @@ class Logger:
         using ``log_tabular`` to store values for each diagnostic, make sure to call ``dump_tabular`` to write them out
         to file and stdout (otherwise they will not get saved anywhere).
         """
-
         if self.first_row:
             self.log_headers.append(key)
         else:
-            assert key in (
-                self.log_headers,
-                "Trying to introduce a new key %s that you didn't include in the first iteration" % key
-            )
+            if key not in self.log_headers:
+                raise AssertionError(f"Trying to introduce a new key {key} that you didn't include in the first iteration")
+            #assert key in (
+            #    self.log_headers,
+            #    f"Trying to introduce a new key {key} that you didn't include in the first iteration"
+            #)
         assert key not in (
             self.log_current_row,
             "You already set %s this iteration. Maybe you forgot to call dump_tabular()" % key
@@ -163,7 +166,7 @@ class Logger:
         Saves the state of an experiment. To be clear: this is about saving *state*, not logging diagnostics. All
         diagnostic logging is separate from this function. This function will save whatever is in
         ``state_dict``---usually just a copy of the environment---and the most recent parameters for the model you
-        previously set up saving for with ``setup_tf_saver``. Call with any frequency you prefer. If you only want to
+        previously set up saving for with ``setup_pytorch_saver``. Call with any frequency you prefer. If you only want to
         maintain a single state and overwrite it at each call with the most recent version, leave ``itr=None``.
         If you want to keep all of the states you save, provide unique (increasing) values for 'itr'.
         Args:
@@ -174,20 +177,26 @@ class Logger:
             fname = 'vars.pkl' if itr is None else 'vars%d.pkl' % itr
             try:
                 joblib.dump(state_dict, osp.join(self.output_dir, fname))
-            except:
+            except Exception as e:
                 self.log('Warning: could not pickle state_dict.', color='red')
+                self.log(repr(state_dict), color='red')
+                self.log(repr(type(state_dict)), color='red')
+                self.log(e, color='red')
             if hasattr(self, 'pytorch_saver_elements'):
                 self._pytorch_simple_save(itr)
 
-    def setup_pytorch_saver(self, what_to_save) -> None:
+    def setup_pytorch_saver(self, agent: ActorCritic) -> None:
         """
         Set up easy model saving for a single PyTorch model. Because PyTorch saving and loading is especially painless,
         this is very minimal; we just need references to whatever we would like to pickle. This is integrated into the
         logger because the logger knows where the user would like to save information about this training run.
         Args:
-            what_to_save: Any PyTorch model or serializable object containing PyTorch models.
+            agent: PyTorch model or serializable object containing PyTorch models.
         """
-        self.pytorch_saver_elements = what_to_save
+        self.pytorch_saver_elements = {
+            "policy_state_dict": agent.pi.state_dict(),
+            "value_state_dict": agent.v.state_dict()
+        }
 
     def _pytorch_simple_save(self, itr: int = None) -> None:
         """ Saves the PyTorch model (or models). """
