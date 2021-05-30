@@ -1,3 +1,5 @@
+from collections import deque
+
 import time
 import torch
 import numpy as np
@@ -105,6 +107,7 @@ class PPO:
         self.epochs = epochs
         self.max_ep_len = max_ep_len
         self.save_freq = save_freq
+        self.last_rewards = deque(maxlen=settings.PPO.epochs_mean_rewards)
 
     def train(self):
 
@@ -147,8 +150,12 @@ class PPO:
                     if terminal:
                         # only save EpRet / EpLen if trajectory finished
                         self.logger.store(EpRet=ep_ret, EpLen=ep_len)
+                        self.last_rewards.append(ep_ret)
                     state, ep_ret, ep_len = self.env.reset(True)[self.brain_name].vector_observations[0], 0, 0
 
+            avg_last_rewards = mpi.mpi_avg(sum(self.last_rewards)/len(self.last_rewards))
+            if (avg_last_rewards >= settings.PPO.env_solved_at) and (epoch >= settings.PPO.epochs_mean_rewards):
+                print("Environmente solved!")
 
             # Save model
             if (epoch % self.save_freq == 0) or (epoch == self.epochs - 1):
@@ -159,6 +166,7 @@ class PPO:
 
             # Log info about epoch
             self.logger.log_tabular('Epoch', epoch)
+            self.logger.log_tabular(f'AvgRewardsLast{settings.PPO.epochs_mean_rewards}Ep', avg_last_rewards)
             self.logger.log_tabular('EpRet', with_min_and_max=True)
             self.logger.log_tabular('EpLen', average_only=True)
             self.logger.log_tabular('VVals', with_min_and_max=True)

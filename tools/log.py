@@ -6,10 +6,9 @@ import joblib
 import atexit
 import warnings
 import numpy as np
-
-from agents import ActorCritic
 from tools import mpi
 import os.path as osp
+from agents import ActorCritic
 from tools import serialization
 from typing import Dict, Optional
 
