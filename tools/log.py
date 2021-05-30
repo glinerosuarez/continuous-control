@@ -6,11 +6,15 @@ import joblib
 import atexit
 import warnings
 import numpy as np
-from tools import mpi
+import pandas as pd
 import os.path as osp
+from tools import mpi
+from config import settings
 from agents import ActorCritic
 from tools import serialization
 from typing import Dict, Optional
+from matplotlib import pyplot as plt
+
 
 
 def setup_logger_kwargs(exp_name: str, seed: int = None, data_dir: str = None, datestamp: bool = False) -> Dict[
@@ -103,7 +107,8 @@ class Logger:
                 print("Warning: Log dir %s already exists! Storing info there anyway." % self.output_dir)
             else:
                 os.makedirs(self.output_dir)
-            self.output_file = open(osp.join(self.output_dir, output_fname), 'w')
+            self.output_file_path = osp.join(self.output_dir, output_fname)
+            self.output_file = open(self.output_file_path, 'w')
             atexit.register(self.output_file.close)
             print(colorize("Logging data to %s" % self.output_file.name, 'green', bold=True))
         else:
@@ -130,10 +135,6 @@ class Logger:
         else:
             if key not in self.log_headers:
                 raise AssertionError(f"Trying to introduce a new key {key} that you didn't include in the first iteration")
-            #assert key in (
-            #    self.log_headers,
-            #    f"Trying to introduce a new key {key} that you didn't include in the first iteration"
-            #)
         assert key not in (
             self.log_current_row,
             "You already set %s this iteration. Maybe you forgot to call dump_tabular()" % key
@@ -294,3 +295,22 @@ class EpochLogger(Logger):
         v = self.epoch_dict[key]
         vals = np.concatenate(v) if isinstance(v[0], np.ndarray) and len(v[0].shape) > 0 else v
         return mpi.mpi_statistics_scalar(vals)
+
+    def plot_rewards(self):
+        """Plot average rewards of the last ``settings.PPO.epochs_mean_rewards`` epochs"""
+        print(f"output file: ", self.output_file_path)
+        progress_df = pd.read_csv(self.output_file_path, sep="\t")
+        print(progress_df)
+        scores = progress_df[f'AvgRewardsLast{settings.PPO.epochs_mean_rewards}Ep']
+
+        # create plot
+        fig: plt.Figure() = plt.figure()
+        ax: plt.axes.SubplotBase = fig.add_subplot(111)
+        plt.plot(np.arange(len(scores)), scores)
+        plt.ylabel('Score')
+        plt.xlabel('Episode #')
+
+        # save to file
+        plt.savefig(osp.join(self.output_dir, "scores.png"))
+
+

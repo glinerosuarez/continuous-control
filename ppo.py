@@ -183,6 +183,8 @@ class PPO:
             self.logger.dump_tabular()
 
         print("training finished")
+        if mpi.proc_id() == 0:
+            self.logger.plot_rewards()
         self.env.close()
 
     def compute_loss_policy(self, data: Dict[str, Tensor]) -> Tuple[Tensor, Dict[str, Tensor]]:
