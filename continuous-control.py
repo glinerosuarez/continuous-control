@@ -16,7 +16,9 @@ from argparse import ArgumentParser, Namespace
 
 def random_cc() -> None:
     # Init environment.
-    env, brain_name, state_size, action_size, state = init_reacher_env(settings.seed)
+    env, brain_name, state_size, action_size, state = init_env(
+        settings.env_file, False, random.randint(0, 1000), random.randint(0, 1000)
+    )
 
     # Take random actions in the environment.
     score: float = 0                                            # initialize the score
@@ -73,14 +75,14 @@ def smart_cc(path: str) -> None:
     Take a trained agent to run an episode of the Reacher environment.
     :param path: Path to the dir that stores a trained agent.
     """
-    model_path = Path()/path/'pyt_save'/'model.pt' # Path to saved model file
-    state_dicts = torch.load(model_path) # Load Python dict with state_dicts for ActorCritic agent
+    model_path = Path()/path/'pyt_save'/'model.pt'  # Path to saved model file
+    state_dicts = torch.load(model_path)            # Load Python dict with state_dicts for ActorCritic agent
     policy_state_dict = state_dicts['policy_state_dict']
     value_state_dict = state_dicts['value_state_dict']
 
     # Init environment
     seed = random.randint(0, 1000)
-    env, brain_name, state_size, action_size, state = init_env(settings.env_file, False, 0, seed)
+    env, brain_name, state_size, action_size, state = init_env(settings.env_file, False, random.randint(0, 1000), seed)
 
     # Init agent
     agent = ActorCritic(state_size, action_size, seed)
@@ -94,7 +96,7 @@ def smart_cc(path: str) -> None:
     agent.v.eval()
     score = 0.0
     while True:
-        action = agent.act(state)
+        action = agent.act(torch.as_tensor(state, dtype=torch.float32))
         env_info: BrainInfo = env.step(action)[brain_name]
         next_state = env_info.vector_observations[0]
         reward = env_info.rewards[0]
@@ -103,6 +105,8 @@ def smart_cc(path: str) -> None:
         score += reward
         if done:
             break
+
+    env.close()
 
     print("Score: {}".format(score))
 
