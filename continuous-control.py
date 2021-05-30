@@ -1,17 +1,22 @@
+import torch
+import random
 import numpy as np
 from ppo import PPO
 from tools import mpi
 from tools import log
+from typing import Dict
+from pathlib import Path
 from config import settings
+from agents import ActorCritic
+from tools.env import init_env
+from unityagents import BrainInfo
 from tools.env import init_reacher_env
-from typing import Tuple, Dict
 from argparse import ArgumentParser, Namespace
-from unityagents import UnityEnvironment, BrainParameters, BrainInfo
 
 
 def random_cc() -> None:
     # Init environment.
-    env, brain_name, state_size, action_size, state = init_reacher_env()
+    env, brain_name, state_size, action_size, state = init_reacher_env(settings.seed)
 
     # Take random actions in the environment.
     score: float = 0                                            # initialize the score
@@ -30,34 +35,17 @@ def random_cc() -> None:
     print("Score: {}".format(score))
 
 
-def train() -> None:
-    """# Init environment.
-    env, brain_name, state_size, action_size, state = init_env(settings.env_file, train_mode=True)
-
-    agent = ActorCritic(state_size, action_size, 24)
-
-    print("Actor model")
-    print("============================================================")
-    print(agent.actor)
-
-    print("Critic model")
-    print("============================================================")
-    print(agent.critic)
-
-    env.close()"""
-
-
-def main():
-    # Get arguments
-    parser: ArgumentParser = ArgumentParser()
-    parser.add_argument("--exp_name", type=str, default="reach-ppo")
-    args: Namespace = parser.parse_args()
+def train(exp_name: str) -> None:
+    """
+    Implement PPO algorithm to train an ActorCritic agent that solves the Reacher environment.
+    :param exp_name: Name of the experiment.
+    """
 
     # Run parallel code with MPI
     mpi.mpi_fork(settings.cores)
 
     # Get logging kwargs
-    logger_kwargs: Dict[str, str] = log.setup_logger_kwargs(args.exp_name, settings.seed, settings.out_dir, True)
+    logger_kwargs: Dict[str, str] = log.setup_logger_kwargs(exp_name, settings.seed, settings.out_dir, True)
 
     ppo: PPO = PPO(
         env_fn=init_reacher_env,
@@ -78,6 +66,77 @@ def main():
     )
 
     ppo.train()
+
+
+def smart_cc(path: str) -> None:
+    """
+    Take a trained agent to run an episode of the Reacher environment.
+    :param path: Path to the dir that stores a trained agent.
+    """
+    model_path = Path()/path/'pyt_save'/'model.pt' # Path to saved model file
+    state_dicts = torch.load(model_path) # Load Python dict with state_dicts for ActorCritic agent
+    policy_state_dict = state_dicts['policy_state_dict']
+    value_state_dict = state_dicts['value_state_dict']
+
+    # Init environment
+    seed = random.randint(0, 1000)
+    env, brain_name, state_size, action_size, state = init_env(settings.env_file, False, 0, seed)
+
+    # Init agent
+    agent = ActorCritic(state_size, action_size, seed)
+
+    # Update state dicts
+    agent.pi.load_state_dict(policy_state_dict)
+    agent.v.load_state_dict(value_state_dict)
+
+    # Run environment
+    agent.pi.eval()
+    agent.v.eval()
+    score = 0.0
+    while True:
+        action = agent.act(state)
+        env_info: BrainInfo = env.step(action)[brain_name]
+        next_state = env_info.vector_observations[0]
+        reward = env_info.rewards[0]
+        done = env_info.local_done[0]
+        state = next_state
+        score += reward
+        if done:
+            break
+
+    print("Score: {}".format(score))
+
+
+def main():
+    # Get arguments
+    parser: ArgumentParser = ArgumentParser()
+    parser.add_argument("-n", "--exp_name", type=str, default="reach-ppo")
+    parser.add_argument(
+        "-t",
+        "--train",
+        help="Use PPO algorithm to train an ActorCritic agent that solves the Reacher environment",
+        action="store_true"
+    )
+    parser.add_argument(
+        "-c",
+        "--continuous_control",
+        help="Receives a path to the folder that contains a trained agent to run an epoch in the Reacher environment",
+        type=str
+    )
+    parser.add_argument(
+        "-r",
+        "--random",
+        help="Use a agent that chooses actions at random to run an epoch in the Reacher environment",
+        action="store_true"
+    )
+    args: Namespace = parser.parse_args()
+
+    if args.train:
+        train(args.exp_name)
+    elif args.random:
+        random_cc()
+    else:
+        smart_cc(args.continuous_control)
 
 
 if __name__ == "__main__":

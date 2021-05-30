@@ -59,7 +59,6 @@ def setup_logger_kwargs(exp_name: str, seed: int = None, data_dir: str = None, d
 def colorize(string: str, color: str, bold: bool = False, highlight: bool = False) -> str:
     """
     Colorize a string.
-    This function was originally written by John Schulman.
     """
     color2num = dict(
         gray=30,

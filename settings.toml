@@ -1,5 +1,4 @@
 env_file = "environment/Reacher.app"
-train_mode = true
 seed = 24
 cores = 4
 out_dir = "output"
@@ -11,7 +10,7 @@ lam = 0.97
 steps_per_epoch = 4000
 clip_ratio = 0.2
 target_kl = 0.01
-epochs = 10
+epochs = 2000
 max_ep_len = 1000
 epochs_mean_rewards = 100 # Number of epochs to compute mean rewards
 env_solved_at = 30.0

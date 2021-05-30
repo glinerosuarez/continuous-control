@@ -7,7 +7,12 @@ from tools import mpi
 
 
 def init_reacher_env(seed: int) -> Tuple[UnityEnvironment, str, int, int, Tuple[float]]:
-    return init_env(settings.env_file, train_mode=settings.train_mode, worker_id=mpi.proc_id(), seed=seed)
+    """
+    Init Reacher environment for training.
+    :param seed: random seed.
+    :return: Environment initial data.
+    """
+    return init_env(settings.env_file, train_mode=True, worker_id=mpi.proc_id(), seed=seed)
 
 
 def init_env(

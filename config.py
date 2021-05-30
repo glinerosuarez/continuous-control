@@ -18,7 +18,6 @@ settings = Dynaconf(
 settings.validators.validate()
 
 assert isinstance(settings.env_file, str)
-assert isinstance(settings.train_mode, bool)
 assert isinstance(settings.seed, int)
 assert isinstance(settings.cores, int)
 assert isinstance(settings.out_dir, str)

@@ -156,6 +156,7 @@ class PPO:
             avg_last_rewards = mpi.mpi_avg(sum(self.last_rewards)/len(self.last_rewards))
             if (avg_last_rewards >= settings.PPO.env_solved_at) and (epoch >= settings.PPO.epochs_mean_rewards):
                 print("Environmente solved!")
+                break
 
             # Save model
             if (epoch % self.save_freq == 0) or (epoch == self.epochs - 1):
