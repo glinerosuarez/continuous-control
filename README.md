@@ -5,8 +5,9 @@
 
 ### Introduction
 
-In this project, we will train an agent to to solve the [Reacher](https://github.com/Unity-Technologies/ml-agents/blob/main/docs/Learning-Environment-Examples.md#reacher) 
-environment.  
+In this project, we will train an agent to solve the [Reacher](https://github.com/Unity-Technologies/ml-agents/blob/main/docs/Learning-Environment-Examples.md#reacher) 
+environment implementing the [*PPO Actor-Critic style*](https://arxiv.org/pdf/1707.06347.pdf) algorithm. The code is 
+based on [OpenAI's spinning repo](https://github.com/openai/spinningup). 
 
 ![Trained Agent][image1]
 
