@@ -28,7 +28,6 @@ class Actor(Module):
         return Normal(mu, std)
 
     def log_prob_from_dist(self, prob_dist: Normal, act):
-        # TODO: why sum is required here?
         return prob_dist.log_prob(act).sum(axis=-1)
 
     def forward(self, states: Tensor, act: Optional[Tensor] = None) -> Tuple[Normal, Optional[Tensor]]:
